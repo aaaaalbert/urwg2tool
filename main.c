@@ -11,6 +11,16 @@ struct report {
 	char data[32];
 };
 
+
+// This Report yields a reply that changes in few places every second
+// (probably a timestamp, uptime, battery charge level or similar)
+struct report COMMAND_TIMESTAMP = { .length = 28, .data = {
+		0x09, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00}
+};
+
 struct report reports_list[] = {
 	{ .length = 17, .data = {
 		0x01, 0x38, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -105,6 +115,8 @@ struct report reports_list[] = {
 	{ .length = -1, .data = {} }
 };
 
+
+
 void iserror(char* where, int what) {
 	if (what != 0) {
 		printf("%s error %d %s\n", where, what, libusb_error_name(what));
@@ -112,16 +124,42 @@ void iserror(char* where, int what) {
 	}
 }
 
+
+char* send_report_and_get_reply(libusb_device_handle* h, uint16_t length,
+		char* data) {
+	uint8_t bmRequestType = LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE; // 0x21
+	uint16_t wValue = 0x0209; // ID 9, Type 2 (output)
+	int transferred;
+	char reply[65536];
+	int r = 0; // to collect return values
+	r = libusb_control_transfer(h, bmRequestType, SET_REPORT,
+			wValue, 0, data, length, 0);
+	//iserror("ctrl xfer", r);
+	//printf("ctrl xferred %d bytes\n", r);
+
+	r = libusb_interrupt_transfer(h, 0x82, reply, sizeof(reply),
+			&transferred, 0);
+	iserror("intr xfer", r);
+	//printf("intr xferred %d bytes\n", transferred);
+	return data;
+}
+
+
+// Send the full "magic sequence" that we sniffed from RØDE Central
+void send_magic_sequence(libusb_device_handle* h) {
+	for (int i=0; reports_list[i].length != (uint16_t)-1; i++) {
+		struct report rtbl = reports_list[i];
+		send_report_and_get_reply(h, rtbl.length, rtbl.data);
+	}
+}
+
+
+
 int main(int argc, char* argv) {
 	libusb_device_handle* h;
 	libusb_context* ctx = NULL; // use default context for now
 	int r=0; // to catch various return values
 	
-	uint8_t bmRequestType = LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE; // 0x21
-	uint16_t wValue = 0x0209; // ID 9, Type 2 (output)
-	uint16_t wLength = 28;
-	int transferred;
-	char data[256];
 
 	int i=0;
 
@@ -139,19 +177,11 @@ int main(int argc, char* argv) {
 		libusb_detach_kernel_driver(h, 0);
 	}
 
-	for (int i=0; reports_list[i].length != (uint16_t)-1; i++) {
-		struct report rtbl = reports_list[i];
-		r = libusb_control_transfer(h, bmRequestType, SET_REPORT,
-				wValue, 0, rtbl.data,
-				rtbl.length, 0);
-		// iserror("ctrl xfer", r);
-		printf("ctrl xferred %d bytes\n", r);
-
-		r = libusb_interrupt_transfer(h, 0x82, data, sizeof(data),
-				&transferred, 0);
-		iserror("intr xfer", r);
-		printf("intr xferred %d bytes\n", transferred);
-	}
+	/*
+	send_report_and_get_reply(h, COMMAND_TIMESTAMP.length,
+			COMMAND_TIMESTAMP.data);
+	*/
+	send_magic_sequence(h);
 
 	libusb_attach_kernel_driver(h, 0);
 	libusb_close(h);
