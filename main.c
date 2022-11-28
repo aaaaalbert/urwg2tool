@@ -22,10 +22,12 @@ int main(int argc, char* argv) {
 	uint16_t wLength = 28;
 
 	char data[] = {
-		0x09, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x09, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00};
+
+	int transferred;
 
 	r = libusb_init(&ctx);
 	iserror("init", r);
@@ -41,15 +43,15 @@ int main(int argc, char* argv) {
 		libusb_detach_kernel_driver(h, 0);
 	}
 
-	// libusb_claim_interface XXX
-	// TODO: business logic follows here
-	//
 	r = libusb_control_transfer(h, bmRequestType, SET_REPORT,
 			wValue, 0, data, wLength, 0);
-	iserror("ctrl xfer", r);
-	printf("xferred %d bytes\n", r);
-	// 
-	// libusb_release_interface XXX
+	// iserror("ctrl xfer", r);
+	printf("ctrl xferred %d bytes\n", r);
+
+	r = libusb_interrupt_transfer(h, 0x82, data, sizeof(data),
+			&transferred, 0);
+	iserror("intr xfer", r);
+	printf("intr xferred %d bytes\n", transferred);
 	
 	libusb_attach_kernel_driver(h, 0);
 	libusb_close(h);
