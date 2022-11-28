@@ -5,6 +5,39 @@
 // The bRequest we send
 #define SET_REPORT 0x09
 
+// The structure of the REPORTs we send to the device
+struct report {
+	uint16_t length;
+	char data[32];
+};
+
+struct report reports_list[] = {
+	{ .length = 17, .data = {
+		0x01, 0x38, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00}
+	},
+	{ .length = 17, .data = {
+		0x01, 0x36, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00}
+	},
+	{ .length = 28, .data = {
+		0x09, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00}
+	},
+	{ .length = 28, .data = {
+		0x09, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00}
+	},
+	// Sentinel for the end of the array
+	{ .length = -1, .data = {} }
+};
+
 void iserror(char* where, int what) {
 	if (what != 0) {
 		printf("%s error %d %s\n", where, what, libusb_error_name(what));
@@ -20,14 +53,10 @@ int main(int argc, char* argv) {
 	uint8_t bmRequestType = LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE; // 0x21
 	uint16_t wValue = 0x0209; // ID 9, Type 2 (output)
 	uint16_t wLength = 28;
-
-	char data[] = {
-		0x09, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00};
-
 	int transferred;
+	char data[256];
+
+	int i=0;
 
 	r = libusb_init(&ctx);
 	iserror("init", r);
@@ -43,16 +72,22 @@ int main(int argc, char* argv) {
 		libusb_detach_kernel_driver(h, 0);
 	}
 
-	r = libusb_control_transfer(h, bmRequestType, SET_REPORT,
-			wValue, 0, data, wLength, 0);
-	// iserror("ctrl xfer", r);
-	printf("ctrl xferred %d bytes\n", r);
+	for (int i=0; reports_list[i].length != (uint16_t)-1; i++) {
+		struct report rtbl = reports_list[i];
+		printf("Doing %d with %x\n", i, rtbl.data[1]);
+		printf("Len is %d\n", rtbl.length);
+		r = libusb_control_transfer(h, bmRequestType, SET_REPORT,
+				wValue, 0, rtbl.data,
+				rtbl.length, 0);
+		// iserror("ctrl xfer", r);
+		printf("ctrl xferred %d bytes\n", r);
 
-	r = libusb_interrupt_transfer(h, 0x82, data, sizeof(data),
-			&transferred, 0);
-	iserror("intr xfer", r);
-	printf("intr xferred %d bytes\n", transferred);
-	
+		r = libusb_interrupt_transfer(h, 0x82, data, sizeof(data),
+				&transferred, 0);
+		iserror("intr xfer", r);
+		printf("intr xferred %d bytes\n", transferred);
+	}
+	printf("there\n");
 	libusb_attach_kernel_driver(h, 0);
 	libusb_close(h);
 	libusb_exit(ctx);
