@@ -137,7 +137,7 @@ char* send_report_and_get_reply(libusb_device_handle* h, uint16_t length,
 	//iserror("ctrl xfer", r);
 	//printf("ctrl xferred %d bytes\n", r);
 
-	r = libusb_interrupt_transfer(h, 0x82, reply, sizeof(reply),
+	r = libusb_interrupt_transfer(h, 0x83, reply, sizeof(reply),
 			&transferred, 0);
 	iserror("intr xfer", r);
 	//printf("intr xferred %d bytes\n", transferred);
